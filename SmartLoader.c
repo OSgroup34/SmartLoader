@@ -10,8 +10,18 @@
 #include <signal.h>
 
 Elf32_Ehdr *ehdr;
+int fd;
+int pagefaults=0;
 
+void sigsegvHandler(int signo, siginfo_t *info, void *context){
+    if (signo==SIGSEGV){
+        void* addr=(*info).si_addr;
+        pagefaults++;
+        for(int i=0;i<(*ehdr).e_phnum;i++){
 
+        }
+    }
+}
 
 int main(int argc,char** argv){
     if(argc!=2){
@@ -19,7 +29,7 @@ int main(int argc,char** argv){
         exit(1);
     }
     //error handling for ELF file
-    fd=open(*exe, O_RDONLY);
+    fd=open(argv[1], O_RDONLY);
     if(fd==-1){ 
         perror("Error while opening");
         exit(0);
@@ -47,7 +57,7 @@ int main(int argc,char** argv){
 
     struct sigaction sig;
     memset(&sig,0,sizeof(sig));
-    sig.sa_sigaction=personal_handler;
+    sig.sa_sigaction=sigsegvHandler;
     sig.sa_flags=SA_SIGINFO;
     if(sigaction(SIGSEGV,&sig,NULL)==-1){
         perror("Error: sigaction");
