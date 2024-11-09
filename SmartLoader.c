@@ -23,6 +23,8 @@ void* mappedPages[100];
 char* heapmemalloc;
 //assuming max pages required 100
 
+void cleanup();
+
 void loadAndRunElf(char** exe){
     fd=open(*exe, O_RDONLY);
     off_t size=lseek(fd,0,SEEK_END);
@@ -62,12 +64,12 @@ void loadAndRunElf(char** exe){
         exit(0);
     }
 
-    int (*_start)(void) = (int (*)(void))(*ehdr).e_entry;
+    int (*_start)(void) = (int (*)(void))(uintptr_t)(*ehdr).e_entry;
     int result = _start();
     printf("User _start return value = %d\n", result);
     printf("Total page faults: %d\n",pagefaults);
     printf("Pages Allocated: %d\n",numOfPages);
-    printf("Total fragmentation (in KB): %0.4f bytes\n",fragmentation);
+    printf("Total fragmentation (in KB): %0.4f bytes\n",(double)fragmentation);
     }
 
 
@@ -78,7 +80,7 @@ void sigsegvHandler(int signo, siginfo_t *info, void *context){
         size_t pageStart=((size_t)addr/PAGESIZE)*PAGESIZE;
         int segment=-1;
         for(int i=0;i<(*ehdr).e_phnum;i++){
-            if ((*(phdr+i)).p_type==PT_LOAD && (*(phdr + i)).p_vaddr<=addr && ((*(phdr + i)).p_vaddr+(*(phdr + i)).p_memsz)>=info->si_addr){
+            if ((*(phdr+i)).p_type==PT_LOAD && (uintptr_t)((*(phdr + i)).p_vaddr) <= (uintptr_t)addr && ((uintptr_t)((*(phdr + i)).p_vaddr)+(*(phdr + i)).p_memsz)>=(uintptr_t)(info->si_addr)){
                 segment=i;
                 break;
             }
@@ -87,7 +89,7 @@ void sigsegvHandler(int signo, siginfo_t *info, void *context){
             printf("fault not occured in given segments.");
             exit(1);
         }
-        void *pageAddr=(void *)((*(phdr+segment)).p_vaddr+numOfPages*PAGESIZE);
+        void *pageAddr=(void *)((uintptr_t)((*(phdr+segment)).p_vaddr)+numOfPages*PAGESIZE);
         pageAllocated=mmap(pageAddr,PAGESIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, fd,((*(phdr+segment)).p_offset+numOfPages*PAGESIZE));
         mappedPages[numOfPages]=pageAllocated;
         numOfPages++;
