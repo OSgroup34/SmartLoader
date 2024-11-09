@@ -30,7 +30,7 @@ void loadAndRunElf(char** exe){
     off_t size=lseek(fd,0,SEEK_END);
     //error handling
     if (size==-1){
-        printf("Error in getting file size\n");
+        perror("Error in getting file size\n");
         exit(1);
     }
     lseek(fd,0,SEEK_SET);
@@ -38,7 +38,7 @@ void loadAndRunElf(char** exe){
     heapmemalloc=(char*)malloc(size);
     //error handling
     if (!heapmemalloc){
-        printf("error in memory allocation\n");
+        perror("error in memory allocation\n");
         exit(1);
     }
     ssize_t readfile=read(fd, heapmemalloc,size);
@@ -59,7 +59,7 @@ void loadAndRunElf(char** exe){
     else if((*ehdr).e_ident[EI_MAG0]!=ELFMAG0 || (*ehdr).e_ident[EI_MAG1]!=ELFMAG1 || (*ehdr).e_ident[EI_MAG2]!=ELFMAG2 || (*ehdr).e_ident[EI_MAG3]!=ELFMAG3)
         x=1;    
     if(x==1){
-        printf("Invalid ELF file.\n");
+        perror("Invalid ELF file.\n");
         cleanup();
         exit(0);
     }
@@ -68,8 +68,8 @@ void loadAndRunElf(char** exe){
     int result = _start();
     printf("User _start return value = %d\n", result);
     printf("Total page faults: %d\n",pagefaults);
-    printf("Pages Allocated: %d\n",numOfPages);
-    printf("Total fragmentation (in KB): %0.4f bytes\n",(double)fragmentation);
+    printf("Total Pages Allocated: %d\n",numOfPages);
+    printf("Total fragmentation: %0.4f KB or %0.2f bytes\n",(double)fragmentation/1024,(double)fragmentation);
     }
 
 
@@ -86,17 +86,26 @@ void sigsegvHandler(int signo, siginfo_t *info, void *context){
             }
         }
         if (segment==-1){
-            printf("fault not occured in given segments.");
+            perror("fault not occured in given segments.");
             exit(1);
         }
-        void *pageAddr=(void *)((uintptr_t)((*(phdr+segment)).p_vaddr)+numOfPages*PAGESIZE);
-        pageAllocated=mmap(pageAddr,PAGESIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, fd,((((uintptr_t)(*(phdr+segment)).p_offset)/PAGESIZE)*PAGESIZE+numOfPages*PAGESIZE));
+        int prot = 0;
+if (phdr[segment].p_flags & PF_R) prot |= PROT_READ;
+if (phdr[segment].p_flags & PF_W) prot |= PROT_WRITE;
+if (phdr[segment].p_flags & PF_X) prot |= PROT_EXEC;
+       if (phdr[segment].p_filesz < phdr[segment].p_memsz) {
+    //for bss(uninitialized data)
+    pageAllocated = mmap((void *)pageStart,PAGESIZE, prot,MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+}
+    else{
+        pageAllocated=mmap((void *)pageStart,PAGESIZE, prot, MAP_PRIVATE | MAP_FIXED, fd,((((uintptr_t)(*(phdr+segment)).p_offset)/PAGESIZE)*PAGESIZE+numOfPages*PAGESIZE));}
         mappedPages[numOfPages]=pageAllocated;
         numOfPages++;
         if (pageAllocated == MAP_FAILED){
-        printf("mmap error");
+        perror("mmap error");
         exit(1);}
-        fragmentation=PAGESIZE-(*(phdr+segment)).p_memsz;
+        //for all pages only
+        fragmentation+=pageStart+PAGESIZE-(*(phdr+segment)).p_memsz-(*(phdr+segment)).p_vaddr;
     }
 }
 
