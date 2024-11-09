@@ -90,12 +90,27 @@ void sigsegvHandler(int signo, siginfo_t *info, void *context){
             exit(1);
         }
         void *pageAddr=(void *)((uintptr_t)((*(phdr+segment)).p_vaddr)+numOfPages*PAGESIZE);
-        pageAllocated=mmap(pageAddr,PAGESIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, fd,((*(phdr+segment)).p_offset+numOfPages*PAGESIZE));
+        pageAllocated=mmap(pageAddr,PAGESIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0,0);
         mappedPages[numOfPages]=pageAllocated;
-        numOfPages++;
         if (pageAllocated == MAP_FAILED){
         printf("mmap error");
         exit(1);}
+
+        if (lseek(fd, phdr[segment].p_offset+numOfPages*PAGESIZE,SEEK_SET)==-1) {
+            perror("lseek");
+            exit(1);}
+        int readCheck;
+        if (pageAddr+PAGESIZE>=phdr[segment].p_vaddr+phdr[segment].p_memsz){
+            readCheck=read(fd,pageAllocated,phdr[segment].p_vaddr+phdr[segment].p_memsz-pageAddr);
+        }
+        else{
+            readCheck=read(fd,pageAllocated,PAGESIZE);
+        }
+        if (readCheck == -1) {
+            perror("read");
+            exit(1);
+        }
+        numOfPages++;
         fragmentation=PAGESIZE-(*(phdr+segment)).p_memsz;
     }
 }
