@@ -1,1 +1,1 @@
-Smart Lazy Loader
+Smart Lazy Loader.
